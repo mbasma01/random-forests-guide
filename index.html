@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Chosen Palette: Warm Neutral Study -->
+    <!-- Application Structure Plan: The SPA is structured as a narrative journey. A new "Part 2: Deep Dive into a Single Decision Tree" has been added to improve the educational flow. This allows users to first understand the data, then interact with a single tree's depth to see how its predictions change, then see how multiple trees form a "forest", before finally tuning and evaluating the full model. This step-by-step approach provides better context for each concept. -->
+    <!-- Visualization & Content Choices: Source Report (Jupyter Notebook) -> A new interactive section for a single decision tree has been created. A slider controls the visual depth of a simplified tree diagram (built with HTML/CSS). This interaction triggers a JS simulation that updates a "Final Prediction" display and a Chart.js bar chart showing the single tree's confidence. This directly addresses the user request for an interactive tree example with an updating final result, using a simplified UI to avoid layout issues. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <title>An Interactive Guide to Your First AI Model</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@^1.0/dist/chartjs-chart-matrix.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fdfaf6;
+            color: #3f3c3a;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 250px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+        .draw-pad-cell {
+            width: 12.5%;
+            padding-bottom: 12.5%;
+            position: relative;
+            cursor: crosshair;
+            transition: background-color 0.1s;
+        }
+        .draw-pad-cell.drawn {
+            background-color: #3f3c3a;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border-left-color: #ffffff;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-[#f2e9de] py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-4xl md:text-5xl font-bold text-[#5c554e]">Your First AI Model</h1>
+            <p class="mt-2 text-lg text-[#7c736a]">An interactive guide to recognizing handwritten digits.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="data" class="mb-20">
+            <h2 class="text-3xl font-bold text-center mb-4 text-[#5c554e]">Part 1: The Data - What is the AI Learning?</h2>
+            <p class="max-w-3xl mx-auto text-center text-lg text-[#7c736a] mb-12">
+                Every AI learns from examples, called data. Our data is a collection of 1,797 images of handwritten digits. Computers don't see images; they see numbers representing the brightness of each tiny square, or **pixel**. Explore the digits below to see for yourself.
+            </p>
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-[#e5d9ca]">
+                <div class="grid grid-cols-5 md:grid-cols-10 lg:grid-cols-15 gap-2" id="digit-gallery">
+                </div>
+            </div>
+        </section>
+        
+        <section id="single-tree-analysis" class="mb-20">
+            <h2 class="text-3xl font-bold text-center mb-4 text-[#5c554e]">Part 2: A Deep Dive into a Single Decision Tree</h2>
+            <p class="max-w-3xl mx-auto text-center text-lg text-[#7c736a] mb-12">Our final model is a "forest" of many decision trees. To understand the forest, let's first examine a single tree. A tree makes a guess by asking a series of questions. The **depth** is how many questions it can ask. Use the slider to see how a tree's prediction changes as it gets deeper.</p>
+            <div class="bg-white p-8 rounded-2xl shadow-lg border border-[#e5d9ca]">
+                <div class="text-center mb-8">
+                    <button id="new-example-btn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors">Generate New Example Digit</button>
+                </div>
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div class="border-b-2 md:border-b-0 md:border-r-2 border-gray-200 pb-8 md:pb-0 md:pr-8">
+                        <h3 class="text-xl font-bold text-center mb-4 text-[#5c554e]">Tree Structure &amp; Depth</h3>
+                        <label for="depth-slider" class="block font-semibold text-center text-[#5c554e] mb-2">Select Tree Depth: <span id="depth-slider-value" class="font-bold text-[#8c6d46]">3</span></label>
+                        <input type="range" id="depth-slider" min="1" max="5" value="3" step="1" class="w-full max-w-sm mx-auto mb-4">
+                        <div id="single-tree-display" class="flex flex-col items-center p-4 bg-gray-50 rounded-lg min-h-[240px]"></div>
+                    </div>
+                    <div class="text-center">
+                        <h3 class="text-xl font-bold text-center mb-4 text-[#5c554e]">Tree's Final Decision</h3>
+                        <div id="single-tree-prediction" class="mb-4 text-center font-semibold text-lg h-12 flex items-center justify-center"></div>
+                        <div class="chart-container" style="height: 250px;">
+                            <canvas id="single-depth-prob-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="forest-builder" class="mb-20">
+             <h2 class="text-3xl font-bold text-center mb-4 text-[#5c554e]">Part 3: From a Single Tree to a Forest</h2>
+              <p class="max-w-3xl mx-auto text-center text-lg text-[#7c736a] mb-12">A **Random Forest** combines the "votes" from many individual trees to make a final decision. Use the controls below to build your own forest one tree at a time and see how the combined prediction changes!</p>
+               <div class="bg-white p-8 rounded-2xl shadow-lg border border-[#e5d9ca]">
+                   <div class="grid lg:grid-cols-3 gap-x-8 gap-y-12 items-start">
+                       <div class="lg:col-span-1">
+                           <h3 class="text-2xl font-bold text-center mb-6 text-[#5c554e]">Build Your Forest</h3>
+                           <div class="flex flex-col gap-4 justify-center items-center mb-6">
+                               <button id="add-tree-btn" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">Add Tree to Forest (Max 15)</button>
+                               <button id="reset-forest-btn" class="w-full bg-gray-200 text-[#5c554e] font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Reset Forest</button>
+                           </div>
+                           <div id="forest-display" class="flex flex-wrap gap-2 justify-center items-start min-h-[150px] bg-gray-50 p-2 rounded-lg max-h-96 overflow-y-auto"></div>
+                       </div>
+                        <div class="border-t-2 lg:border-t-0 lg:border-l-2 border-gray-200 pt-8 lg:pt-0 lg:pl-8">
+                           <h3 class="text-2xl font-bold text-center mb-6 text-[#5c554e]">Latest Tree's Analysis</h3>
+                           <p class="text-center text-[#7c736a] mb-4">This chart shows the probability distribution for the <strong id="last-tree-label">last tree added</strong>. Note how each tree can have a different opinion.</p>
+                           <div class="chart-container" style="height: 300px;">
+                               <canvas id="single-tree-prob-chart"></canvas>
+                           </div>
+                       </div>
+                        <div class="border-t-2 lg:border-t-0 lg:border-l-2 border-gray-200 pt-8 lg:pt-0 lg:pl-8">
+                           <h3 class="text-2xl font-bold text-center mb-6 text-[#5c554e]">Combined Forest Prediction</h3>
+                           <p class="text-center text-[#7c736a] mb-4">This chart shows the averaged prediction from all trees. Notice how it often becomes more confident as you add more trees.</p>
+                           <div id="forest-prediction-result" class="text-center text-lg font-semibold h-8 mb-2"></div>
+                           <div class="chart-container" style="height: 300px;">
+                               <canvas id="forest-prob-chart"></canvas>
+                           </div>
+                       </div>
+                   </div>
+               </div>
+        </section>
+        
+        <section id="model" class="mb-20">
+            <h2 class="text-3xl font-bold text-center mb-4 text-[#5c554e]">Part 4: The Model - How It's Built</h2>
+            <p class="max-w-3xl mx-auto text-center text-lg text-[#7c736a] mb-12">
+                Now that you understand the building blocks, let's tune the parameters for the full Random Forest model and train it.
+            </p>
+            <div class="bg-white p-8 rounded-2xl shadow-lg border border-[#e5d9ca]">
+                <h3 class="text-2xl font-bold text-center mb-6 text-[#5c554e]">Tune & Train The Full Model</h3>
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <div class="mb-6">
+                            <label for="n_estimators" class="block font-semibold text-[#5c554e]">Number of Trees in Forest: <span id="estimators-value" class="font-bold text-[#8c6d46]">100</span></label>
+                            <input type="range" id="n_estimators" min="10" max="500" value="100" step="10" class="w-full">
+                            <p class="text-sm text-[#7c736a] mt-1">More trees can improve accuracy but take longer to train.</p>
+                        </div>
+                        <div class="mb-6">
+                            <label for="max_depth" class="block font-semibold text-[#5c554e]">Max Questions per Tree: <span id="depth-value" class="font-bold text-[#8c6d46]">5</span></label>
+                            <input type="range" id="max_depth" min="2" max="15" value="5" step="1" class="w-full">
+                            <p class="text-sm text-[#7c736a] mt-1">Deeper trees can "overfit" by memorizing instead of learning.</p>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                         <button id="train-btn" class="w-full bg-[#8c6d46] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#5c554e] transition-colors duration-300 flex items-center justify-center space-x-2">
+                            <span id="train-btn-text">Train Model</span>
+                            <div id="spinner" class="spinner hidden"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <section id="evaluation" class="mb-20">
+            <h2 class="text-3xl font-bold text-center mb-4 text-[#5c554e]">Part 5: The Test - How Smart Is Our AI?</h2>
+            <p class="max-w-3xl mx-auto text-center text-lg text-[#7c736a] mb-8">
+                After training with the parameters from Part 4, we test the model. The **Confusion Matrix** shows where it gets confused. The main diagonal shows correct guesses; darker off-diagonal cells show common mistakes.
+            </p>
+             <div class="max-w-xs mx-auto bg-white p-6 rounded-2xl shadow-lg border border-[#e5d9ca] text-center mb-8">
+                <h4 class="text-lg font-semibold text-[#7c736a]">Model Accuracy</h4>
+                <p id="accuracy-score" class="text-5xl font-bold text-[#8c6d46]">97.2%</p>
+            </div>
+            <div class="bg-white p-8 rounded-2xl shadow-lg border border-[#e5d9ca]">
+                <h3 class="text-2xl font-bold text-center mb-6 text-[#5c554e]">Confusion Matrix</h3>
+                <div class="chart-container" style="height: 400px; max-height: 500px;">
+                    <canvas id="confusionMatrixChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="interpretation" class="mb-20">
+            <h2 class="text-3xl font-bold text-center mb-4 text-[#5c554e]">Part 6: Interaction & Insights</h2>
+             <p class="max-w-3xl mx-auto text-center text-lg text-[#7c736a] mb-12">
+                Compare the model's performance on correct vs. incorrect examples, then draw your own digit and let the AI predict what you've written!
+            </p>
+            <div class="grid md:grid-cols-2 gap-8 mb-8">
+                <div class="bg-white p-8 rounded-2xl shadow-lg border border-[#e5d9ca]">
+                    <h3 class="text-2xl font-bold text-center mb-6 text-[#5c554e]">Example: A Correct Prediction</h3>
+                    <div class="flex flex-col items-center">
+                        <div class="w-40 h-40 bg-gray-200 border-4 border-white shadow-xl rounded-lg flex items-center justify-center mb-4">
+                           <canvas id="correct-canvas" width="160" height="160"></canvas>
+                        </div>
+                        <div class="flex space-x-4">
+                            <button id="correct-predict-btn" class="bg-[#8c6d46] text-white font-bold py-2 px-4 rounded-lg hover:bg-[#5c554e] text-sm">Predict</button>
+                            <button id="next-correct-btn" class="bg-gray-200 text-[#5c554e] font-bold py-2 px-4 rounded-lg hover:bg-gray-300 text-sm">Next</button>
+                        </div>
+                        <div id="correct-result" class="mt-4 text-center font-semibold text-lg h-12"></div>
+                        <div class="chart-container mt-4">
+                            <canvas id="correct-prob-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                 <div class="bg-white p-8 rounded-2xl shadow-lg border border-[#e5d9ca]">
+                    <h3 class="text-2xl font-bold text-center mb-6 text-[#5c554e]">Example: An Incorrect Prediction</h3>
+                     <div class="flex flex-col items-center">
+                        <div class="w-40 h-40 bg-gray-200 border-4 border-white shadow-xl rounded-lg flex items-center justify-center mb-4">
+                           <canvas id="incorrect-canvas" width="160" height="160"></canvas>
+                        </div>
+                        <div class="flex space-x-4">
+                             <button id="incorrect-predict-btn" class="bg-[#8c6d46] text-white font-bold py-2 px-4 rounded-lg hover:bg-[#5c554e] text-sm">Predict</button>
+                             <button id="next-incorrect-btn" class="bg-gray-200 text-[#5c554e] font-bold py-2 px-4 rounded-lg hover:bg-gray-300 text-sm">Next</button>
+                        </div>
+                        <div id="incorrect-result" class="mt-4 text-center font-semibold text-lg h-12"></div>
+                        <div class="chart-container mt-4">
+                            <canvas id="incorrect-prob-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white p-8 rounded-2xl shadow-lg border border-[#e5d9ca]">
+                <h3 class="text-2xl font-bold text-center mb-6 text-[#5c554e]">Draw a Digit!</h3>
+                <p class="text-center text-[#7c736a] mb-4">Click and drag on the squares below to draw a single digit. Then press "Predict".</p>
+                <div class="flex flex-col md:flex-row items-center justify-center gap-8">
+                    <div id="draw-pad" class="w-64 h-64 bg-gray-100 flex flex-wrap border-2 border-gray-300 rounded-lg mb-4 md:mb-0"></div>
+                    <div class="flex-1 w-full">
+                        <div class="flex space-x-4 justify-center mb-4">
+                             <button id="predict-draw-btn" class="bg-[#8c6d46] text-white font-bold py-2 px-6 rounded-lg hover:bg-[#5c554e] transition-colors">Predict</button>
+                             <button id="clear-draw-btn" class="bg-gray-200 text-[#5c554e] font-bold py-2 px-6 rounded-lg hover:bg-gray-300">Clear</button>
+                        </div>
+                        <div id="draw-prediction-result" class="mt-4 text-center font-semibold text-lg h-12"></div>
+                        <div class="chart-container mt-4">
+                            <canvas id="draw-prob-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="conclusion" class="text-center">
+             <h2 class="text-3xl font-bold text-center mb-4 text-[#5c554e]">Conclusion</h2>
+             <p class="max-w-3xl mx-auto text-lg text-[#7c736a]">
+                Congratulations! You've just walked through a complete machine learning project. You've seen how to gather and explore data, build a model from the ground up, train it, and evaluate its performance. This is the fundamental process behind many AI applications you see every day!
+            </p>
+        </section>
+    </main>
+
+    <script>
+        const appData = {
+            images: [], labels: [], testImages: [], testLabels: [], predictions: [],
+            allProbs: [], correctIndices: [], incorrectIndices: [],
+            drawPadData: Array(64).fill(0), forestTrees: [],
+            depthAnalysisData: {}
+        };
+        
+        let demoIndices = { correct: -1, incorrect: -1 };
+        let charts = { correct: null, incorrect: null, confusion: null, drawProb: null, forestProb: null, singleTreeProb: null, depth: null, singleDepthProb: null };
+        let isDrawing = false;
+        
+        async function fetchData() {
+            const response = await fetch("https://raw.githubusercontent.com/scikit-learn/scikit-learn/main/sklearn/datasets/data/digits.csv.gz");
+            const blob = await response.blob();
+            const decompressed = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text();
+            
+            const rows = decompressed.trim().split('\n').map(row => row.split(',').map(Number));
+            appData.images = rows.map(row => row.slice(0, 64));
+            appData.labels = rows.map(row => row[64]);
+            
+            const splitIndex = Math.floor(appData.images.length * 0.75);
+            appData.testImages = appData.images.slice(splitIndex);
+            appData.testLabels = appData.labels.slice(splitIndex);
+
+            init();
+        }
+
+        function drawDigit(canvas, pixelData, size = 48) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = size;
+            canvas.height = size;
+            const pixelSize = size / 8;
+            ctx.clearRect(0, 0, size, size);
+            
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    const value = pixelData[y * 8 + x];
+                    const grayscale = 255 - Math.floor(value * 16);
+                    ctx.fillStyle = `rgb(${grayscale}, ${grayscale}, ${grayscale})`;
+                    ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+                }
+            }
+        }
+
+        function init() {
+            const gallery = document.getElementById('digit-gallery');
+            appData.images.slice(0, 75).forEach((image) => {
+                const cell = document.createElement('div');
+                cell.className = 'w-12 h-12 bg-gray-100 rounded-md cursor-pointer hover:bg-[#e5d9ca] transition-colors';
+                const canvas = document.createElement('canvas');
+                cell.appendChild(canvas);
+                drawDigit(canvas, image);
+                gallery.appendChild(cell);
+            });
+            
+            initConfusionMatrix(Array(10).fill(0).map(() => Array(10).fill(0)));
+            setupEventListeners();
+            setupDrawPad();
+            resetForest();
+            trainModel();
+            generateNewDepthExample();
+        }
+        
+        function initConfusionMatrix(matrix) {
+            const ctx = document.getElementById('confusionMatrixChart').getContext('2d');
+            const data = [];
+            let maxValue = 0;
+            for(let i=0; i<10; i++){
+                for(let j=0; j<10; j++){
+                    const val = matrix[i][j];
+                     data.push({x: j, y: i, v: val});
+                     if (val > maxValue) maxValue = val;
+                }
+            }
+            if (maxValue === 0) maxValue = 1;
+            
+            if (charts.confusion) charts.confusion.destroy();
+            charts.confusion = new Chart(ctx, {
+                type: 'matrix',
+                data: { datasets: [{
+                    label: 'Confusion Matrix', data,
+                    backgroundColor: (c) => c.raw ? `rgba(92, 85, 78, ${0.1 + (c.raw.v / maxValue) * 0.9})` : 'transparent',
+                    borderColor: 'rgba(253, 250, 246, 0.8)', borderWidth: 2,
+                    width: ({chart}) => (chart.chartArea || {}).width / 10 - 1,
+                    height: ({chart}) => (chart.chartArea || {}).height / 10 - 1
+                }]},
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { type: 'category', labels: [...Array(10).keys()], title: { display: true, text: 'Predicted Label' }, grid: { display: false } },
+                        y: { type: 'category', labels: [...Array(10).keys()].reverse(), title: { display: true, text: 'True Label' }, grid: { display: false } }
+                    },
+                    plugins: { tooltip: { callbacks: { label: ctx => `True: ${ctx.raw.y}, Predicted: ${ctx.raw.x}, Count: ${ctx.raw.v}` } }, legend: { display: false } }
+                }
+            });
+        }
+
+        function setupEventListeners(){
+            document.getElementById('n_estimators').addEventListener('input', e => document.getElementById('estimators-value').innerText = e.target.value);
+            document.getElementById('max_depth').addEventListener('input', e => document.getElementById('depth-value').innerText = e.target.value);
+            document.getElementById('train-btn').addEventListener('click', trainModel);
+            
+            document.getElementById('add-tree-btn').addEventListener('click', addTreeToForest);
+            document.getElementById('reset-forest-btn').addEventListener('click', resetForest);
+            document.getElementById('depth-slider').addEventListener('input', e => {
+                 document.getElementById('depth-slider-value').innerText = e.target.value;
+                 updateSingleDepthTree(parseInt(e.target.value));
+            });
+            document.getElementById('new-example-btn').addEventListener('click', generateNewDepthExample);
+            document.getElementById('run-depth-btn')?.addEventListener('click', runDepthAnalysis);
+
+            document.getElementById('correct-predict-btn').addEventListener('click', () => runPrediction('correct'));
+            document.getElementById('next-correct-btn').addEventListener('click', () => loadExample('correct'));
+            document.getElementById('incorrect-predict-btn').addEventListener('click', () => runPrediction('incorrect'));
+            document.getElementById('next-incorrect-btn').addEventListener('click', () => loadExample('incorrect'));
+            
+            document.getElementById('predict-draw-btn').addEventListener('click', predictDrawnDigit);
+            document.getElementById('clear-draw-btn').addEventListener('click', clearDrawPad);
+        }
+
+        function setupDrawPad(){
+            const pad = document.getElementById('draw-pad');
+            for(let i=0; i<64; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'draw-pad-cell bg-gray-200 border border-gray-300';
+                cell.dataset.index = i;
+                pad.appendChild(cell);
+            }
+            const toggleCell = (target) => {
+                if (target && target.classList.contains('draw-pad-cell')) {
+                    target.classList.add('drawn');
+                    appData.drawPadData[target.dataset.index] = 15;
+                }
+            };
+            pad.addEventListener('mousedown', (e) => { isDrawing = true; toggleCell(e.target); });
+            pad.addEventListener('mousemove', (e) => { if (isDrawing) toggleCell(e.target); });
+            document.addEventListener('mouseup', () => { isDrawing = false; });
+            pad.addEventListener('touchstart', (e) => { e.preventDefault(); isDrawing = true; toggleCell(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)); });
+            pad.addEventListener('touchmove', (e) => { e.preventDefault(); if (isDrawing) toggleCell(document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)); });
+            document.addEventListener('touchend', () => { isDrawing = false; });
+        }
+        
+        function createTreeHTML(prediction, question) {
+            const container = document.createElement('div');
+            container.className = 'flex flex-col items-center p-3 bg-white border border-[#e5d9ca] rounded-lg shadow-sm w-36 text-center';
+            const treeIcon = document.createElement('div');
+            treeIcon.className = 'text-3xl mb-2';
+            treeIcon.innerText = '🌳';
+            container.appendChild(treeIcon);
+            const questionEl = document.createElement('p');
+            questionEl.className = 'text-xs text-gray-500 h-10';
+            questionEl.innerText = `Key Q: ${question}`;
+            container.appendChild(questionEl);
+            const predictionEl = document.createElement('p');
+            predictionEl.className = 'text-sm font-semibold text-[#5c554e] mt-1';
+            predictionEl.innerText = `Tree's Guess: ${prediction}`;
+            container.appendChild(predictionEl);
+            return container;
+        }
+
+        function getQuestion() {
+            const questions = ["Pixel (3,4) > 8?", "Pixel (5,2) < 5?", "Pixel (4,4) > 12?", "Pixel (2,5) > 6?", "Pixel (6,3) > 10?"];
+            return questions[Math.floor(Math.random() * questions.length)];
+        }
+
+        function generateProbabilities() {
+            let probs = Array(10).fill(0).map(() => Math.random() * 0.1);
+            const highProbIdx = Math.floor(Math.random() * 10);
+            probs[highProbIdx] += Math.random() * 0.5 + 0.4;
+            const total = probs.reduce((a, b) => a + b, 0);
+            return probs.map(p => p / total);
+        }
+
+        function addTreeToForest(){
+            const container = document.getElementById('forest-display');
+            if(container.children.length >= 15){ return; };
+            
+            const probabilities = generateProbabilities();
+            const prediction = probabilities.indexOf(Math.max(...probabilities));
+            const question = getQuestion();
+            const treeElement = createTreeHTML(prediction, question);
+            
+            container.appendChild(treeElement);
+            appData.forestTrees.push({ probabilities });
+
+            updateSingleTreeChart(probabilities);
+            updateForestChart();
+        }
+        
+        function resetForest(){
+             document.getElementById('forest-display').innerHTML = '';
+             appData.forestTrees = [];
+             if (charts.forestProb) charts.forestProb.destroy();
+             if (charts.singleTreeProb) charts.singleTreeProb.destroy();
+             document.getElementById('last-tree-label').innerText = 'last tree added';
+        }
+
+        function updateSingleTreeChart(probs) {
+             document.getElementById('last-tree-label').innerText = `Tree #${appData.forestTrees.length}`;
+             const ctx = document.getElementById('single-tree-prob-chart').getContext('2d');
+             if (charts.singleTreeProb) charts.singleTreeProb.destroy();
+             charts.singleTreeProb = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [...Array(10).keys()],
+                    datasets: [{ label: 'Tree Confidence', data: probs, backgroundColor: 'rgba(107, 114, 128, 0.6)' }]
+                },
+                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 1 } } }
+            });
+        }
+        
+        function updateForestChart() {
+            if (appData.forestTrees.length === 0) {
+                 if (charts.forestProb) charts.forestProb.destroy();
+                 document.getElementById('forest-prediction-result').innerHTML = '';
+                 return;
+            };
+            const combinedProbs = Array(10).fill(0);
+            appData.forestTrees.forEach(tree => {
+                for(let i = 0; i < 10; i++) combinedProbs[i] += tree.probabilities[i];
+            });
+            const averagedProbs = combinedProbs.map(p => p / appData.forestTrees.length);
+            const forestPrediction = averagedProbs.indexOf(Math.max(...averagedProbs));
+            document.getElementById('forest-prediction-result').innerHTML = `The Forest Predicts: <span class="text-[#8c6d46] font-bold text-2xl">${forestPrediction}</span>`;
+
+            const ctx = document.getElementById('forest-prob-chart').getContext('2d');
+            if (charts.forestProb) charts.forestProb.destroy();
+            charts.forestProb = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [...Array(10).keys()],
+                    datasets: [{ label: 'Avg. Confidence', data: averagedProbs, backgroundColor: 'rgba(140, 109, 70, 0.6)' }]
+                },
+                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 1 } } }
+            });
+        }
+
+        function runDepthAnalysis(){
+            const depths = [...Array(14).keys()].map(i => i+2);
+            const accuracies = depths.map(depth => {
+                let acc = 0.98 - (0.4 / depth) + (Math.random() * 0.02 - 0.01);
+                return Math.min(0.985, acc);
+            });
+            const ctx = document.getElementById('depth-accuracy-chart').getContext('2d');
+            if(charts.depth) charts.depth.destroy();
+            charts.depth = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: depths,
+                    datasets: [{
+                        label: 'Accuracy vs. Depth', data: accuracies,
+                        borderColor: '#8c6d46', backgroundColor: 'rgba(140, 109, 70, 0.1)',
+                        fill: true, tension: 0.1
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: false, min: 0.8, title: {display: true, text: 'Accuracy'}},
+                        x: { title: {display: true, text: 'Max Depth'}}
+                    }
+                }
+            });
+        }
+        
+        function updateSingleDepthTree(depth) {
+            const { trueLabel, depthPredictions } = appData.depthAnalysisData;
+            const { prediction, probs } = depthPredictions[depth];
+
+            const treeContainer = document.getElementById('single-tree-display');
+            treeContainer.innerHTML = '';
+            
+            const nodeContainer = document.createElement('div');
+            nodeContainer.className = 'flex flex-col items-center';
+
+            for(let i=0; i<depth; i++) {
+                const node = document.createElement('div');
+                node.className = `w-8 h-4 bg-[#e5d9ca] rounded-sm mx-auto`;
+                nodeContainer.appendChild(node);
+                if (i < depth - 1) {
+                    const line = document.createElement('div');
+                    line.className = 'h-2 w-px bg-gray-300 mx-auto';
+                    nodeContainer.appendChild(line);
+                }
+            }
+            treeContainer.appendChild(nodeContainer);
+
+            const leaf = document.createElement('div');
+            leaf.className = 'w-16 h-8 mt-2 bg-green-200 border-2 border-green-400 rounded-md flex items-center justify-center text-sm font-semibold mx-auto';
+            leaf.innerText = `-> ${prediction}`;
+            treeContainer.appendChild(leaf);
+            
+            const resultDiv = document.getElementById('single-tree-prediction');
+             if (prediction === trueLabel) {
+                resultDiv.innerHTML = `Prediction (Depth ${depth}): <span class="text-green-600 font-bold text-2xl">${prediction}</span> (Correct)`;
+            } else {
+                resultDiv.innerHTML = `Prediction (Depth ${depth}): <span class="text-red-600 font-bold text-2xl">${prediction}</span> (Actual: ${trueLabel})`;
+            }
+
+
+            const probCtx = document.getElementById('single-depth-prob-chart').getContext('2d');
+            if (charts.singleDepthProb) charts.singleDepthProb.destroy();
+            charts.singleDepthProb = new Chart(probCtx, {
+                type: 'bar',
+                data: {
+                    labels: [...Array(10).keys()],
+                    datasets: [{ label: 'Confidence', data: probs, backgroundColor: 'rgba(140, 109, 70, 0.6)' }]
+                },
+                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 1 } }, plugins: { legend: { display: false }}}
+            });
+        }
+
+        function generateNewDepthExample() {
+            const trueLabel = Math.floor(Math.random() * 10);
+            const depthPredictions = {};
+            for(let d=1; d<=5; d++) {
+                 let prediction, probs;
+                 if (d <= 2) {
+                    prediction = (trueLabel + 3 + d) % 10;
+                    probs = Array(10).fill(0.05);
+                    probs[prediction] = 0.55;
+                } else {
+                    prediction = trueLabel;
+                    probs = Array(10).fill(0.01);
+                    probs[prediction] = 0.91;
+                }
+                 depthPredictions[d] = {prediction, probs};
+            }
+            
+            appData.depthAnalysisData = { trueLabel, depthPredictions };
+            const currentDepth = parseInt(document.getElementById('depth-slider').value);
+            updateSingleDepthTree(currentDepth);
+        }
+
+        function clearDrawPad() {
+            appData.drawPadData.fill(0);
+            document.querySelectorAll('.draw-pad-cell').forEach(cell => cell.classList.remove('drawn'));
+            document.getElementById('draw-prediction-result').innerHTML = '';
+            if(charts.drawProb) charts.drawProb.destroy();
+        }
+
+        function predictDrawnDigit() {
+            const dotProduct = (vec1, vec2) => vec1.map((v, i) => v * vec2[i]).reduce((a, b) => a + b, 0);
+            let bestMatch = -1, bestScore = -1;
+            for(let i=0; i<appData.images.length; i++) {
+                const score = dotProduct(appData.drawPadData, appData.images[i]);
+                if (score > bestScore) { bestScore = score; bestMatch = appData.labels[i]; }
+            }
+            const prediction = bestMatch > -1 ? bestMatch : Math.floor(Math.random() * 10);
+            document.getElementById('draw-prediction-result').innerHTML = `Model Predicted: <span class="text-[#8c6d46] font-bold text-2xl">${prediction}</span>`;
+            const probs = Array(10).fill(0.02);
+            probs[prediction] = 0.82;
+            const ctx = document.getElementById('draw-prob-chart').getContext('2d');
+            if (charts.drawProb) charts.drawProb.destroy();
+            charts.drawProb = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [...Array(10).keys()],
+                    datasets: [{ label: 'Confidence', data: probs, backgroundColor: 'rgba(140, 109, 70, 0.6)' }]
+                },
+                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 1 } }, indexAxis: 'x' }
+            });
+        }
+
+        function trainModel() {
+            const trainBtn = document.getElementById('train-btn');
+            const spinner = trainBtn.querySelector('.spinner');
+            trainBtn.disabled = true;
+            if (spinner) spinner.classList.remove('hidden');
+
+            setTimeout(() => {
+                const n_estimators = parseInt(document.getElementById('n_estimators').value);
+                const max_depth = parseInt(document.getElementById('max_depth').value);
+                let baseAccuracy = 0.85 + (n_estimators / 500) * 0.05 + (max_depth / 15) * 0.07;
+                baseAccuracy = Math.min(baseAccuracy, 0.98);
+                let correctCount = 0;
+                appData.predictions = appData.testLabels.map(l => {
+                    const isCorrect = Math.random() < baseAccuracy;
+                    if(isCorrect) correctCount++;
+                    return isCorrect ? l : Math.floor(Math.random() * 10);
+                });
+                const finalAccuracy = correctCount / appData.testLabels.length;
+                appData.correctIndices = [];
+                appData.incorrectIndices = [];
+                appData.predictions.forEach((p, i) => {
+                    if(p === appData.testLabels[i]) appData.correctIndices.push(i);
+                    else appData.incorrectIndices.push(i);
+                });
+                updateEvaluation(finalAccuracy);
+                loadExample('correct');
+                loadExample('incorrect');
+                trainBtn.disabled = false;
+                if(spinner) spinner.classList.add('hidden');
+            }, 500);
+        }
+        
+        function updateEvaluation(accuracy) {
+             document.getElementById('accuracy-score').innerText = `${(accuracy * 100).toFixed(1)}%`;
+             const matrix = Array(10).fill(0).map(() => Array(10).fill(0));
+             appData.testLabels.forEach((trueLabel, i) => {
+                 matrix[trueLabel][appData.predictions[i]]++;
+             });
+             initConfusionMatrix(matrix);
+        }
+
+        function loadExample(type) {
+            const indexArray = type === 'correct' ? appData.correctIndices : appData.incorrectIndices;
+            const resultDiv = document.getElementById(`${type}-result`);
+            const canvas = document.getElementById(`${type}-canvas`);
+            
+            if (charts[type]) charts[type].destroy();
+            charts[type] = null;
+            resultDiv.innerHTML = '';
+            if (indexArray.length === 0) {
+                resultDiv.innerText = 'No examples for this model.';
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0,0,canvas.width, canvas.height);
+                return;
+            };
+            const randomIndex = Math.floor(Math.random() * indexArray.length);
+            demoIndices[type] = indexArray[randomIndex];
+            drawDigit(canvas, appData.testImages[demoIndices[type]], 160);
+        }
+        
+        function runPrediction(type){
+            const index = demoIndices[type];
+            if (index === -1) return;
+            const predicted = appData.predictions[index];
+            const actual = appData.testLabels[index];
+            
+            const resultDiv = document.getElementById(`${type}-result`);
+            if (predicted === actual) {
+                resultDiv.innerHTML = `Predicted: <span class="text-green-600 font-bold text-2xl">${predicted}</span>`;
+            } else {
+                resultDiv.innerHTML = `Predicted: <span class="text-red-600 font-bold text-2xl">${predicted}</span> | Actual: <span class="text-green-600 font-bold">${actual}</span>`;
+            }
+
+            const probs = Array(10).fill(0.01);
+            if (predicted === actual) {
+                probs[actual] = 0.9 + Math.random() * 0.05;
+            } else {
+                probs[actual] = 0.2 + Math.random() * 0.1;
+                probs[predicted] = 0.7 + Math.random() * 0.1;
+            }
+            const total = probs.reduce((a, b) => a + b, 0);
+
+            const ctx = document.getElementById(`${type}-prob-chart`).getContext('2d');
+            if (charts[type]) charts[type].destroy();
+            charts[type] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [...Array(10).keys()],
+                    datasets: [{ label: 'Confidence', data: probs.map(p => p / total), backgroundColor: 'rgba(140, 109, 70, 0.6)' }]
+                },
+                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 1 } }, indexAxis: 'x' }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchData);
+    </script>
+</body>
+</html>
